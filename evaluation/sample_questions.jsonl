@@ -1,0 +1,7 @@
+{"question": "What is max_requests_per_minute for Enterprise keys?", "answer": "6000", "doc": "../tests/fixtures/acme_gateway_spec.md", "evidence_pages": [123], "domain": "technical"}
+{"question": "What is the default burst_size?", "answer": "100", "doc": "../tests/fixtures/acme_gateway_spec.md", "evidence_pages": [4], "domain": "technical"}
+{"question": "Do Enterprise overrides apply to DELETE endpoints?", "answer": "No, DELETE endpoints keep the default limits.", "doc": "../tests/fixtures/acme_gateway_spec.md", "evidence_pages": [123], "domain": "technical"}
+{"question": "What were net savings from caching in Q3 FY2025?", "answer": "(0.3)", "doc": "../tests/fixtures/acme_gateway_spec.md", "evidence_pages": [41], "domain": "technical"}
+{"question": "What is the timeout_ms for GET /v3/reports?", "answer": "30000", "doc": "../tests/fixtures/acme_gateway_spec.md", "evidence_pages": [4], "domain": "technical"}
+{"question": "How many times are idempotent GET requests retried upstream?", "answer": "2", "doc": "../tests/fixtures/acme_gateway_spec.md", "evidence_pages": [7], "domain": "technical"}
+{"question": "What uptime SLA does the gateway guarantee?", "answer": "Not stated", "doc": "../tests/fixtures/acme_gateway_spec.md", "evidence_pages": [], "domain": "technical"}
