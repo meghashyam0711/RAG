@@ -44,6 +44,10 @@ cd RAG
 uv sync
 ```
 
+> **`git` is not recognized?** Git isn't installed. Either install it with `winget install --id Git.Git -e` (Windows) or from <https://git-scm.com/downloads>, then **close and reopen the terminal**. Or skip Git entirely: open <https://github.com/meghashyam0711/RAG>, click **Code → Download ZIP**, extract it, and `cd` into the extracted folder (for example `cd $HOME\Downloads\RAG-main`) before running `uv sync`.
+>
+> **`uv` is not recognized?** Install it as in step 1 (or `winget install --id astral-sh.uv -e`), then reopen the terminal.
+
 `uv sync` creates a `.venv` inside the folder and installs the core ("lite") mode, which needs no database, Docker or API key.
 
 > **Windows note:** older Windows PowerShell (5.1) does not accept `&&` between commands. Run each command on its own line as shown above, or chain them with `;` instead.
