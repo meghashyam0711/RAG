@@ -300,6 +300,10 @@ class Nodes:
                 if e.chunk.chunk_type == "table":
                     continue
                 for s in sentences(e.chunk.text):
+                    if s.strip() == e.chunk.section.strip() or (
+                        not s.rstrip().endswith((".", "!", "?", ":")) and len(s.split()) <= 12
+                    ):
+                        continue  # headings are context, not answers
                     toks = set(re.findall(r"[a-z0-9_\-.]+", s.lower().replace(",", "")))
                     hit = sum(1 for t in terms if _present(t, s.lower(), toks))
                     if hit >= min(2, len(terms)):

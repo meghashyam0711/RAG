@@ -3,7 +3,7 @@ name = "self-corrective-graphrag"
 version = "0.1.0"
 description = "Layout-aware, self-correcting GraphRAG exposed as an MCP server for Claude Code, Cursor, Windsurf and any MCP client."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = { text = "MIT" }
 dependencies = [
     "mcp>=2.0,<3",
@@ -36,6 +36,7 @@ dev = ["pytest>=8", "pytest-asyncio>=0.23"]
 
 [project.scripts]
 graphrag-mcp = "graphrag.server:main"
+graphrag = "graphrag.cli:main"
 
 [build-system]
 requires = ["hatchling"]

@@ -1,6 +1,6 @@
 # Self-Corrective GraphRAG: an MCP server for document reading
 
-**Layout-aware, graph-linked, self-verifying document retrieval for Claude Code, Cursor, Windsurf and any MCP client.**
+**Layout-aware, graph-linked, self-verifying document retrieval. Works in Claude Code, Codex, Cursor, VS Code, Antigravity, Windsurf, Claude Desktop and any other MCP client, or straight from your terminal with no agent at all.**
 
 Coding agents handle source code well but struggle with long reference documents: 300-page API specs, hardware datasheets, compliance manuals, 10-K filings. If an agent reads the PDF directly, it floods its context window, breaks tables apart, misses an override that sits 120 pages after the default it changes, and fills gaps with guesses. This server is built to fix each of those problems.
 
@@ -14,27 +14,84 @@ Coding agents handle source code well but struggle with long reference documents
 
 ---
 
-## Install in Claude Code
+## Quick start
 
 ```bash
 git clone https://github.com/<you>/self-corrective-graphrag && cd self-corrective-graphrag
-uv sync                                   # core install (lite mode)
-claude mcp add graphrag-reader -- uv run --directory "$PWD" mcp_server.py
+uv sync                      # core install ("lite" mode, no services needed)
 ```
 
-> Use `--directory`: a plain `uv run /path/mcp_server.py` picks up the project from your *current* directory, not from where the script lives.
-> Add `--scope project` to save the server to `.mcp.json` so your whole team gets it.
+You can then use it in either of two ways.
 
-Then just ask:
+### Option A: plug it into your coding agent or IDE (one command)
+
+```bash
+uv run graphrag install all            # every agent/IDE detected on this machine
+# or pick one:
+uv run graphrag install claude-code
+uv run graphrag install codex
+uv run graphrag install cursor
+uv run graphrag install vscode
+uv run graphrag install antigravity
+uv run graphrag install windsurf
+uv run graphrag install claude-desktop
+```
+
+The installer writes the correct config with this repo's absolute path, merges it into any existing config without touching your other servers, and keeps a `.bak` copy of the old file. Useful flags:
+
+| Flag | Effect |
+|---|---|
+| `--scope project --project-dir .` | Writes a per-project config to commit for your team (`.mcp.json`, `.cursor/mcp.json`, `.vscode/mcp.json`, `.codex/config.toml`, `.agents/mcp_config.json`) |
+| `--print` | Shows what would be written and changes nothing |
+| `--print-all` | Prints copy-paste config for every client |
+| `--uninstall` | Removes the server again |
+
+Restart the client (or reload its MCP servers) afterwards. Per-client details:
+
+| Client | What `graphrag install` does | Manual setup |
+|---|---|---|
+| **Claude Code** | runs `claude mcp add --scope user graphrag-reader -- uv run --directory <repo> mcp_server.py` | same command; project scope writes `.mcp.json` |
+| **Codex** (CLI, IDE extension and desktop app share one config) | adds `[mcp_servers.graphrag-reader]` to `~/.codex/config.toml`, with `tool_timeout_sec = 900` so long ingests don't time out | `codex mcp add graphrag-reader -- uv run --directory <repo> mcp_server.py`. Project `.codex/config.toml` only loads in trusted projects |
+| **Cursor** | merges into `~/.cursor/mcp.json` | `integrations/cursor.mcp.json` |
+| **VS Code** (GitHub Copilot agent mode) | runs `code --add-mcp '{…"type":"stdio"…}'`; project scope writes `.vscode/mcp.json` | VS Code uses a top-level **`servers`** key and needs `"type": "stdio"`. See `integrations/vscode.mcp.json`. Use the tools in **Agent** mode |
+| **Antigravity** (IDE, CLI and app) | merges into `~/.gemini/config/mcp_config.json` (and the legacy `~/.gemini/antigravity/mcp_config.json` if present) | Agent panel → `…` → MCP Servers → Manage → View raw config. Project scope: `.agents/mcp_config.json`. Remote servers use `serverUrl`, not `url` |
+| **Windsurf** | merges into `~/.codeium/windsurf/mcp_config.json` | `integrations/windsurf.mcp_config.json` |
+| **Claude Desktop** | merges into the OS-specific `claude_desktop_config.json` | `integrations/claude-desktop.json` |
+| **Any other MCP client** | | stdio command: `uv run --directory <repo> mcp_server.py` |
+
+Then just ask your agent something like:
 
 > *"Ingest `docs/gateway-spec.pdf` and `docs/q3-compliance.pdf`, then update `config/rate_limits.py` to match the Enterprise rate-limit tables."*
 
-Claude Code calls `ingest_complex_doc` once per file, then `ask_verified_docs` / `extract_verified_table` as it works.
+The agent calls `ingest_complex_doc` once per file, then `ask_verified_docs` / `extract_verified_table` as it works.
 
-**Cursor / Windsurf / Claude Desktop:** copy `.mcp.json.example` into the client's MCP config (`~/.cursor/mcp.json`, `~/.codeium/windsurf/mcp_config.json`, or `claude_desktop_config.json`) and fix the path.
+**Shared or remote server:** run `uv run graphrag serve --http --host 0.0.0.0 --port 8765`, then point clients at `http://host:8765/mcp` (Claude Code: `claude mcp add --transport http graphrag-reader <url>`; Codex: `codex mcp add graphrag-reader --url <url>`; Antigravity: `"serverUrl": "<url>"`).
 
-**Remote / shared server:** `GRAPHRAG_TRANSPORT=streamable-http GRAPHRAG_PORT=8765 uv run mcp_server.py`, then connect with
-`claude mcp add --transport http graphrag-reader http://host:8765/mcp`.
+### Option B: use it straight from the terminal (no agent needed)
+
+The same engine, with the same verified, cited answers:
+
+```bash
+uv run graphrag ingest docs/gateway-spec.pdf --domain technical
+uv run graphrag ingest filings/*.pdf --domain finance
+
+uv run graphrag ask "What is max_requests_per_minute for Enterprise keys?"
+uv run graphrag ask "Net income in FY2024?" --doc amd_10k_2024 --json
+uv run graphrag trace max_requests_per_minute --hops 2
+uv run graphrag table "operating metrics" --compute "pct_change(1,840, 2,310)"
+uv run graphrag docs
+
+uv run graphrag chat                   # interactive session
+#   graphrag> What is the default burst_size?
+#   graphrag> :trace Appendix B
+#   graphrag> :table default limits by endpoint
+#   graphrag> :doc gateway-spec        (restrict to one document; ":doc *" clears it)
+#   graphrag> :quit
+```
+
+Add `--plain` to strip Markdown. To use `graphrag` without the `uv run` prefix, install it as a tool: `uv tool install .` (or `pipx install .`). Without uv, run `python graphrag_cli.py <command>` from the clone after installing the dependencies.
+
+The terminal and every MCP client share one index (`~/.graphrag-mcp`, or set `GRAPHRAG_DATA_DIR`), so a document ingested in one is available in all the others.
 
 ## Tools
 
@@ -119,9 +176,13 @@ It runs three configurations: **naive** (dense only), **hybrid** (dense + BM25 +
 
 ```
 self-corrective-graphrag/
-├── mcp_server.py                 # entry point (uv run --directory … mcp_server.py)
+├── mcp_server.py                 # MCP entry point (uv run --directory … mcp_server.py)
+├── graphrag_cli.py               # terminal entry point without installing (python graphrag_cli.py ask …)
+├── integrations/                 # manual configs: Claude Code, Codex, Cursor, VS Code, Antigravity, Windsurf, Claude Desktop
 ├── src/graphrag/
 │   ├── server.py                 # MCPServer + 5 tools, markdown rendering
+│   ├── cli.py                    # `graphrag` command: ingest / ask / trace / table / chat / serve / install
+│   ├── installer.py              # writes/merges MCP config for every supported client
 │   ├── engine.py                 # facade: ingest / ask / trace / table
 │   ├── config.py  models.py  llm.py
 │   ├── ingestion/  layout_parser.py  chunker.py  graph_extractor.py  entity_resolver.py
@@ -129,7 +190,7 @@ self-corrective-graphrag/
 │   ├── retrieval/  hybrid.py  reranker.py
 │   └── agent/      state.py  nodes.py  sandbox.py  workflow.py
 ├── evaluation/run_benchmark.py   # naive vs hybrid vs full ablation
-├── tests/                        # unit, pipeline, stub-LLM and real MCP-over-stdio tests
+├── tests/                        # unit, pipeline, stub-LLM, MCP-over-stdio, CLI and installer tests
 └── docker-compose.yml            # Qdrant + Neo4j (optional)
 ```
 

@@ -49,9 +49,12 @@ def get_engine():
     if _engine is None:
         with _engine_lock:
             if _engine is None:
+                import atexit
+
                 from .engine import GraphRAGEngine
 
                 _engine = GraphRAGEngine()
+                atexit.register(_engine.close)  # release the embedded Qdrant lock cleanly
     return _engine
 
 

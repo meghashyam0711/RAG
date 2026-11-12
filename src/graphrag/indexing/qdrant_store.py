@@ -116,6 +116,9 @@ class QdrantStore:
                 return out
 
     def close(self) -> None:
+        if getattr(self, "_closed", False):
+            return
+        self._closed = True
         try:
             self.client.close()
         except Exception:

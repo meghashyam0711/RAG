@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "graphrag-reader": {
+      "command": "uv",
+      "args": ["run", "--directory", "/ABSOLUTE/PATH/TO/self-corrective-graphrag", "mcp_server.py"]
+    }
+  }
+}

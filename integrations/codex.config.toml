@@ -1,0 +1,11 @@
+# Append to ~/.codex/config.toml (shared by Codex CLI, IDE extension and desktop app)
+# or to .codex/config.toml in a trusted project.
+[mcp_servers.graphrag-reader]
+command = "uv"
+args = ["run", "--directory", "/ABSOLUTE/PATH/TO/self-corrective-graphrag", "mcp_server.py"]
+startup_timeout_sec = 60
+tool_timeout_sec = 900   # ingesting a large PDF can take minutes
+
+# Optional: pin the index location or add an LLM key
+# [mcp_servers.graphrag-reader.env]
+# GRAPHRAG_DATA_DIR = "~/.graphrag-mcp"
