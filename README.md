@@ -16,54 +16,59 @@ Coding agents handle source code well but struggle with long reference documents
 
 ## Quick start
 
-**Requirements:** [Git](https://git-scm.com/downloads), Python 3.11+, and [uv](https://docs.astral.sh/uv/getting-started/installation/).
+### One-line install (recommended)
 
-### 1. Install uv (skip if `uv --version` already works)
-
-Windows (PowerShell):
+**Windows** (PowerShell):
 
 ```powershell
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+irm https://raw.githubusercontent.com/meghashyam0711/RAG/main/install.ps1 | iex
 ```
 
-macOS / Linux:
+**macOS / Linux:**
 
 ```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
+curl -LsSf https://raw.githubusercontent.com/meghashyam0711/RAG/main/install.sh | sh
 ```
 
-Close and reopen the terminal after installing so the `uv` command is found.
+The script does the whole setup in one go:
+- Installs **uv** if it is missing. uv also installs Python 3.11+ itself, so Python doesn't need to be installed first.
+- Reloads PATH in the same window, so you don't need to open a new terminal.
+- Clones the repo into `~/RAG`. If **Git is not installed**, it downloads the ZIP instead.
+- Runs `uv sync` and then a self-test (`graphrag doctor`).
+- Registers the MCP server with every agent or IDE it finds: Claude Code, Codex, Cursor, VS Code, Antigravity, Windsurf and Claude Desktop.
 
-### 2. Clone the repository and install
+Running it again updates an existing install. Afterwards, **restart your agent/IDE**.
 
-Run these one line at a time. This works in Windows PowerShell, Command Prompt, macOS and Linux:
+Options (set before running): `GRAPHRAG_CLIENTS=codex,cursor` (or `none`) and `GRAPHRAG_HOME=<folder>`.
+In PowerShell, use `$env:GRAPHRAG_CLIENTS="codex"`.
+
+**Using an agent?** Just tell it *"install https://github.com/meghashyam0711/RAG"*. The repo's `AGENTS.md` (and `CLAUDE.md` / `GEMINI.md`) gives Codex, Claude Code, Cursor, Copilot and Antigravity the exact steps.
+
+### Manual install
+
+Run one command per line (Windows PowerShell 5.1 does not accept `&&`):
 
 ```
 git clone https://github.com/meghashyam0711/RAG.git
 cd RAG
 uv sync
+uv run graphrag doctor
 ```
 
-> **`git` is not recognized?** Git isn't installed. Either install it with `winget install --id Git.Git -e` (Windows) or from <https://git-scm.com/downloads>, then **close and reopen the terminal**. Or skip Git entirely: open <https://github.com/meghashyam0711/RAG>, click **Code → Download ZIP**, extract it, and `cd` into the extracted folder (for example `cd $HOME\Downloads\RAG-main`) before running `uv sync`.
->
-> **`uv` is not recognized?** Install it as in step 1 (or `winget install --id astral-sh.uv -e`), then reopen the terminal.
-
-`uv sync` creates a `.venv` inside the folder and installs the core ("lite") mode, which needs no database, Docker or API key.
-
-> **Windows note:** older Windows PowerShell (5.1) does not accept `&&` between commands. Run each command on its own line as shown above, or chain them with `;` instead.
-
-Check that it works:
-
-```
-uv run graphrag --help
-```
+| Problem | Fix |
+|---|---|
+| `git` / `uv` "is not recognized" **right after installing it** | The window still has the old PATH. Open a **new** terminal, or run `$env:Path = [Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [Environment]::GetEnvironmentVariable("Path","User")` |
+| `git` not installed | `winget install --id Git.Git -e`, or skip Git: on GitHub click **Code → Download ZIP**, extract it, `cd` into the folder |
+| `uv` not installed | `winget install --id astral-sh.uv -e` (Windows) or `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
+| `cd RAG` fails | The clone failed. Fix git first, or use the one-line installer |
+| Agent shows no `graphrag-reader` tools | Restart the agent/IDE. Run `uv run graphrag doctor` to see which configs contain it |
 
 You can then use it in either of two ways.
 
 ### Option A: plug it into your coding agent or IDE (one command)
 
 ```bash
-uv run graphrag install all            # every agent/IDE detected on this machine
+uv run graphrag install all            # every agent/IDE detected (the one-line installer already did this)
 # or pick one:
 uv run graphrag install claude-code
 uv run graphrag install codex
@@ -117,6 +122,7 @@ uv run graphrag ask "Net income in FY2024?" --doc amd_10k_2024 --json
 uv run graphrag trace max_requests_per_minute --hops 2
 uv run graphrag table "operating metrics" --compute "pct_change(1,840, 2,310)"
 uv run graphrag docs
+uv run graphrag doctor                 # self-test
 
 uv run graphrag chat                   # interactive session
 #   graphrag> What is the default burst_size?
@@ -135,7 +141,7 @@ The terminal and every MCP client share one index (`~/.graphrag-mcp`, or set `GR
 | Tool | What it does |
 |---|---|
 | `ingest_complex_doc(file_path, domain_tag, doc_name?, force?)` | Parses the layout, splits the document into chunks with context, extracts entities and relations into the graph using a fixed ontology, and builds the dense and BM25 indexes. Running it again on an unchanged file does nothing. |
-| `ask_verified_docs(query, doc_filter?, response_format?)` | Runs the full self-corrective loop and returns an answer with `[E#]` citations and a status: `verified`, `partially_verified` or `abstained`. |
+| `ask_verified_docs(query, doc_filter?, response_format?, verbose?)` | Runs the full self-corrective loop and returns an answer with `[E#]` citations and a status: `verified`, `partially_verified` or `abstained`. The output is compact by default (about 200 tokens); `verbose=true` adds chunk ids and the loop trace. |
 | `trace_entity_relations(entity_name, max_hops, doc_filter?)` | Walks the graph out from a parameter, component, metric or section. Shows where it is defined, what references or overrides it, and cites every edge. |
 | `extract_verified_table(topic, doc_name?, compute?)` | Returns the exact table as Markdown, with units and parenthetical negatives kept. Optional sandboxed arithmetic checks that every operand appears in the table. |
 | `list_indexed_docs()` | Lists the indexed documents, the graph size, and which backends are active. |
@@ -215,6 +221,8 @@ It runs three configurations: **naive** (dense only), **hybrid** (dense + BM25 +
 RAG/
 ├── mcp_server.py                 # MCP entry point (uv run --directory … mcp_server.py)
 ├── graphrag_cli.py               # terminal entry point without installing (python graphrag_cli.py ask …)
+├── install.ps1 / install.sh      # one-line installers (uv, code, deps, self-test, agent registration)
+├── AGENTS.md (+ CLAUDE.md, GEMINI.md)  # setup/usage instructions read by coding agents
 ├── integrations/                 # manual configs: Claude Code, Codex, Cursor, VS Code, Antigravity, Windsurf, Claude Desktop
 ├── src/graphrag/
 │   ├── server.py                 # MCPServer + 5 tools, markdown rendering

@@ -335,7 +335,7 @@ class Nodes:
         overrides = [f for f in state.get("graph_facts", []) if "-[MODIFIES]->" in f]
         if overrides:
             lines.append("\n**Overrides detected in the document graph** (check which applies):")
-            lines.extend(f"- {f}" for f in overrides[:4])
+            lines.extend(f"- {f.split('  (evidence')[0]}" for f in overrides[:4])  # edge only; text is cited above
         if not any(l.startswith("- ") or l.lstrip().startswith("Table") for l in lines):
             return ABSTAIN_MSG, []
         return "\n".join(lines).strip(), []

@@ -61,7 +61,9 @@ def resolve_launch(launcher: str = "auto", data_dir: str | None = None) -> Launc
     if launcher == "uv":
         if not in_repo:
             raise SystemExit("--launcher uv needs the git checkout (mcp_server.py not found).")
-        return Launch("uv", ["run", "--directory", str(REPO_ROOT), "mcp_server.py"], env)
+        # Absolute path: GUI apps (VS Code, Cursor, Antigravity, Claude Desktop) often start with a PATH
+        # that predates the uv install, so a bare "uv" fails with "command not found".
+        return Launch(shutil.which("uv") or "uv", ["run", "--directory", str(REPO_ROOT), "mcp_server.py"], env)
     if launcher == "script":
         exe = shutil.which("graphrag-mcp") or "graphrag-mcp"
         return Launch(exe, [], env)

@@ -109,3 +109,25 @@ def test_terminal_cli_end_to_end(tmp_path):
     assert "MODIFIES" in r.stdout
     r = run("chat", input=":docs\nWhat uptime SLA does the gateway guarantee?\n:quit\n")
     assert "acme_gateway_spec" in r.stdout and "ABSTAINED" in r.stdout
+
+
+def test_doctor_passes(tmp_path):
+    env = {"GRAPHRAG_EMBEDDER": "hash", "GRAPHRAG_LLM_PROVIDER": "none", "PATH": "/usr/bin:/bin", "HOME": str(tmp_path)}
+    r = subprocess.run([sys.executable, str(ROOT / "graphrag_cli.py"), "doctor"], capture_output=True, text=True, env=env)
+    assert "[PASS] multi-hop verified answer" in r.stdout and "[PASS] abstains" in r.stdout
+
+
+def test_compact_answer_is_small():
+    from graphrag.server import render_answer
+
+    res = {"status": "verified", "answer": "x [E1]", "retrieval_rounds": 1, "latency_ms": 5, "trace": ["a", "b"],
+           "citations": [{"ref": "E1", "chunk_id": "doc::c0001-abc", "source": "doc, p. 1", "type": "text",
+                          "retrieved_by": ["dense"]}]}
+    compact, verbose = render_answer(res), render_answer(res, verbose=True)
+    assert "doc::c0001" not in compact and "trace" not in compact
+    assert "doc::c0001" in verbose and "trace" in verbose
+
+
+def test_launch_uses_absolute_uv_path(monkeypatch):
+    monkeypatch.setattr(installer.shutil, "which", lambda x: "/opt/bin/uv" if x == "uv" else None)
+    assert installer.resolve_launch("uv").command == "/opt/bin/uv"

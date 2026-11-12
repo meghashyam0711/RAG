@@ -132,6 +132,65 @@ def cmd_chat(a) -> int:
         print()
 
 
+_SAMPLE_DOC = """# Doctor Sample Spec
+<!-- page: 2 -->
+## 2. Rate Limiting
+The parameter `max_requests_per_minute` defaults to 600. See Appendix B for Enterprise overrides.
+<!-- page: 9 -->
+## Appendix B: Enterprise Overrides
+This appendix supersedes the default limits in Section 2. For Enterprise keys `max_requests_per_minute` is set to 6000.
+"""
+
+
+def cmd_doctor(a) -> int:
+    """Self-test in a throwaway index: imports, ingest, multi-hop answer, abstention, client configs."""
+    import shutil
+    import tempfile
+
+    ok = True
+
+    def check(name: str, passed: bool, hint: str = "") -> None:
+        nonlocal ok
+        ok &= passed
+        print(f"[{'PASS' if passed else 'FAIL'}] {name}" + ("" if passed or not hint else f"  -> {hint}"))
+
+    check(f"Python {sys.version.split()[0]}", sys.version_info >= (3, 11), "need Python 3.11+ (uv sync installs it)")
+    check("uv on PATH", bool(shutil.which("uv")), "install uv, then open a NEW terminal")
+    tmp = tempfile.mkdtemp(prefix="graphrag-doctor-")
+    os.environ["GRAPHRAG_DATA_DIR"] = tmp
+    try:
+        from .config import Settings
+        from .engine import GraphRAGEngine
+
+        eng = GraphRAGEngine(Settings())
+        doc = Path(tmp) / "doctor_sample.md"
+        doc.write_text(_SAMPLE_DOC, encoding="utf-8")
+        check("ingest", eng.ingest(str(doc), "technical")["status"] == "indexed")
+        r = eng.ask("What is max_requests_per_minute for Enterprise keys?")
+        check("multi-hop verified answer", r["status"] == "verified" and "6000" in r["answer"], str(r.get("status")))
+        r = eng.ask("What uptime SLA is guaranteed?")
+        check("abstains when docs are silent", r["status"] == "abstained")
+        caps = eng.capabilities()
+        print(f"       backends: embedder={caps['embedder']}, llm={caps['llm']}, graph={caps['graph']}")
+        eng.close()
+    except Exception as exc:
+        check("engine", False, f"{type(exc).__name__}: {exc}  (run `uv sync` in the repo folder)")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+    from . import installer
+
+    launch = installer.resolve_launch()
+    print(f"       MCP launch command: {launch.command} {' '.join(launch.args)}")
+    for client in installer.CLIENTS:
+        path = installer.config_path(client, "user", Path.cwd())
+        if path and path.exists():
+            found = installer.SERVER_NAME in path.read_text(encoding="utf-8", errors="replace")
+            print(f"       {client}: {'configured' if found else 'not configured'} ({path})")
+    print("\nAll checks passed." if ok else "\nSome checks failed; see hints above.")
+    return 0 if ok else 1
+
+
 def cmd_serve(a) -> int:
     if a.http:
         os.environ["GRAPHRAG_TRANSPORT"] = "streamable-http"
@@ -213,6 +272,9 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("chat", help="interactive question-answering session")
     s.add_argument("--doc")
     s.set_defaults(fn=cmd_chat)
+
+    s = sub.add_parser("doctor", help="self-test the install (uses a temporary index)")
+    s.set_defaults(fn=cmd_doctor)
 
     s = sub.add_parser("serve", help="run the MCP server")
     s.add_argument("--http", action="store_true", help="streamable HTTP instead of stdio")

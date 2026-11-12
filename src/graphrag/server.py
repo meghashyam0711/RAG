@@ -113,6 +113,7 @@ async def ask_verified_docs(
     query: str,
     doc_filter: str | list[str] | None = None,
     response_format: Literal["markdown", "json"] = "markdown",
+    verbose: bool = False,
 ) -> str:
     """Answer a question from the indexed documents using the self-corrective GraphRAG loop.
 
@@ -128,6 +129,7 @@ async def ask_verified_docs(
         query: Natural-language question. Name parameters/sections verbatim when you know them.
         doc_filter: Optional document name/id (or list) to restrict the search.
         response_format: markdown (default, for reading) or json (structured, for programmatic use).
+        verbose: include chunk ids, retrieval sources and the loop trace (more tokens). Default compact.
     """
     try:
         res = await _run(get_engine().ask, query, doc_filter)
@@ -137,8 +139,8 @@ async def ask_verified_docs(
         log.exception("ask failed")
         return f"Error: {type(exc).__name__}: {exc}"
     if response_format == "json":
-        return json.dumps(res, indent=2, default=str)
-    return render_answer(res)
+        return json.dumps(res, default=str)
+    return render_answer(res, verbose or os.environ.get("GRAPHRAG_VERBOSE") == "1")
 
 
 @mcp.tool(
@@ -170,9 +172,11 @@ async def trace_entity_relations(entity_name: str, max_hops: int = 2, doc_filter
     if res["alternatives"]:
         lines.append(f"other matches: {', '.join(res['alternatives'])}")
     lines += ["", "| hop | source | relation | target | cited at | evidence |", "|---|---|---|---|---|---|"]
+    from .retrieval.hybrid import _short
+
     for r in res["relations"]:
-        ev = (r["evidence"] or "").replace("|", "\\|")[:110]
-        lines.append(f"| {r['hop']} | {r['source']} | {r['relation']} | {r['target']} | {r['cited_at'] or ''} | {ev} |")
+        ev = (r["evidence"] or "").replace("|", "\\|")[:80]
+        lines.append(f"| {r['hop']} | {_short(r['source'])} | {r['relation']} | {_short(r['target'])} | {r['cited_at'] or ''} | {ev} |")
     if res["truncated"]:
         lines.append("\n(truncated; lower max_hops or add doc_filter)")
     return "\n".join(lines)
@@ -233,10 +237,13 @@ STATUS_BADGE = {"verified": "VERIFIED", "partially_verified": "PARTIALLY VERIFIE
                 "unverified": "UNVERIFIED", "abstained": "ABSTAINED"}
 
 
-def render_answer(res: dict) -> str:
+def render_answer(res: dict, verbose: bool = False) -> str:
+    """Compact by default: an agent reads this into its context, so every line costs tokens."""
     status = res.get("status", "?")
-    lines = [f"**Status: {STATUS_BADGE.get(status, status)}** "
-             f"({res.get('retrieval_rounds', 0)} retrieval round(s), {res.get('latency_ms', '?')} ms)", ""]
+    head = f"**Status: {STATUS_BADGE.get(status, status)}**"
+    if verbose:
+        head += f" ({res.get('retrieval_rounds', 0)} retrieval round(s), {res.get('latency_ms', '?')} ms)"
+    lines = [head, ""]
     lines.append(res.get("answer", ""))
     if status == "abstained":
         if res.get("missing"):
@@ -250,12 +257,16 @@ def render_answer(res: dict) -> str:
     if res.get("citations"):
         lines.append("\n**Sources**")
         for c in res["citations"]:
-            via = ", ".join(c.get("retrieved_by", []))
-            lines.append(f"- [{c['ref']}] {c['source']} ({c['type']}; via {via}) `{c['chunk_id']}`")
+            if verbose:
+                via = ", ".join(c.get("retrieved_by", []))
+                lines.append(f"- [{c['ref']}] {c['source']} ({c['type']}; via {via}) `{c['chunk_id']}`")
+            else:
+                lines.append(f"- [{c['ref']}] {c['source']}")
     if res.get("unsupported_claims"):
-        lines.append("\n**Removed by verifier** (not supported by evidence):")
-        lines.extend(f"- {u}" for u in res["unsupported_claims"][:5])
-    if res.get("trace"):
+        lines.append(f"\n{len(res['unsupported_claims'])} unsupported claim(s) removed by the verifier.")
+        if verbose:
+            lines.extend(f"- {u}" for u in res["unsupported_claims"][:5])
+    if verbose and res.get("trace"):
         lines.append("\n<details><summary>trace</summary>\n\n" + " -> ".join(res["trace"]) + "\n</details>")
     return "\n".join(lines)
 

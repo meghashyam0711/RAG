@@ -172,7 +172,7 @@ class GraphRAGEngine:
         final["latency_ms"] = int((time.perf_counter() - t0) * 1000)
         return final
 
-    def trace_entity(self, entity_name: str, max_hops: int = 2, doc_filter: str | None = None, limit: int = 40) -> dict:
+    def trace_entity(self, entity_name: str, max_hops: int = 2, doc_filter: str | None = None, limit: int = 25) -> dict:
         max_hops = max(1, min(int(max_hops), 4))
         matches = self.resolver.lookup(entity_name, limit=5, score_cutoff=70)
         if not matches:
