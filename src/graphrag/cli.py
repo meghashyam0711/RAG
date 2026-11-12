@@ -52,7 +52,16 @@ def _print(text: str, plain: bool) -> None:
 def cmd_ingest(a) -> int:
     s = _server()
     rc = 0
-    for f in a.files:
+    import glob
+
+    files: list[str] = []
+    for f in a.files:  # expand wildcards ourselves: PowerShell/cmd pass "*.pdf" through literally
+        matches = sorted(glob.glob(os.path.expanduser(f))) if any(c in f for c in "*?[") else [f]
+        if not matches:
+            print(f"Error: no files match {f}")
+            rc = 1
+        files.extend(matches)
+    for f in files:
         out = _call(s.ingest_complex_doc, str(Path(f).expanduser().resolve()), a.domain, a.name, a.force)
         _print(out, a.plain)
         rc |= out.startswith("Error")
@@ -227,6 +236,11 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    for stream in (sys.stdout, sys.stderr):  # Windows consoles default to cp1252; documents contain any Unicode
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
     args = build_parser().parse_args(argv)
     return args.fn(args) or 0
 

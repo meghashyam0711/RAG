@@ -2,7 +2,9 @@
 
 The easy way is `graphrag install <client>` (or `graphrag install all`), which writes these for you with the correct
 absolute path and keeps your existing servers. These files are for manual setup: replace
-`/ABSOLUTE/PATH/TO/self-corrective-graphrag` with your clone's path.
+`/ABSOLUTE/PATH/TO/self-corrective-graphrag` with the full path of your clone of
+https://github.com/meghashyam0711/RAG, e.g. `C:/Users/<name>/RAG` on Windows (use forward slashes or `\\` in JSON)
+or `/home/<name>/RAG` on macOS/Linux.
 
 | Client | File here | Copy to (user / all projects) | Copy to (project) | Top-level key |
 |---|---|---|---|---|

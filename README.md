@@ -16,9 +16,42 @@ Coding agents handle source code well but struggle with long reference documents
 
 ## Quick start
 
+**Requirements:** [Git](https://git-scm.com/downloads), Python 3.11+, and [uv](https://docs.astral.sh/uv/getting-started/installation/).
+
+### 1. Install uv (skip if `uv --version` already works)
+
+Windows (PowerShell):
+
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+macOS / Linux:
+
 ```bash
-git clone https://github.com/<you>/self-corrective-graphrag && cd self-corrective-graphrag
-uv sync                      # core install ("lite" mode, no services needed)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+Close and reopen the terminal after installing so the `uv` command is found.
+
+### 2. Clone the repository and install
+
+Run these one line at a time. This works in Windows PowerShell, Command Prompt, macOS and Linux:
+
+```
+git clone https://github.com/meghashyam0711/RAG.git
+cd RAG
+uv sync
+```
+
+`uv sync` creates a `.venv` inside the folder and installs the core ("lite") mode, which needs no database, Docker or API key.
+
+> **Windows note:** older Windows PowerShell (5.1) does not accept `&&` between commands. Run each command on its own line as shown above, or chain them with `;` instead.
+
+Check that it works:
+
+```
+uv run graphrag --help
 ```
 
 You can then use it in either of two ways.
@@ -175,7 +208,7 @@ It runs three configurations: **naive** (dense only), **hybrid** (dense + BM25 +
 ## Repository layout
 
 ```
-self-corrective-graphrag/
+RAG/
 ├── mcp_server.py                 # MCP entry point (uv run --directory … mcp_server.py)
 ├── graphrag_cli.py               # terminal entry point without installing (python graphrag_cli.py ask …)
 ├── integrations/                 # manual configs: Claude Code, Codex, Cursor, VS Code, Antigravity, Windsurf, Claude Desktop
@@ -196,8 +229,9 @@ self-corrective-graphrag/
 
 ## Development
 
-```bash
-uv sync --extra dev && uv run pytest -q
+```
+uv sync --extra dev
+uv run pytest -q
 ```
 
 `tests/test_mcp_stdio.py` starts the server as a subprocess and drives it with the official MCP client, the same way Claude Code does.
