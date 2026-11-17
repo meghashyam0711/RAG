@@ -60,7 +60,7 @@ def load_financebench(pdf_dir: Path, limit: int | None) -> list[dict]:
 
 
 def load_jsonl(path: Path, limit: int | None) -> list[dict]:
-    rows = [json.loads(l) for l in path.read_text().splitlines() if l.strip()]
+    rows = [json.loads(l) for l in path.read_text(encoding="utf-8").splitlines() if l.strip()]
     for r in rows:
         r["doc"] = str((path.parent / r["doc"]).resolve()) if not Path(r["doc"]).is_absolute() else r["doc"]
     return rows[:limit] if limit else rows
@@ -163,7 +163,7 @@ def main() -> None:
         print(f"{cfg:<8} {f(m['context_recall@5']):>9} {f(m['numeric_accuracy']):>8} {f(m['abstain_rate']):>8} "
               f"{f(m['p50_latency_ms']):>8} {f(m['p95_latency_ms']):>8}")
     if args.out:
-        args.out.write_text(json.dumps({"summary": results, "per_question": per_q}, indent=2))
+        args.out.write_text(json.dumps({"summary": results, "per_question": per_q}, indent=2), encoding="utf-8")
         print(f"\nwrote {args.out}")
 
 

@@ -141,9 +141,10 @@ def _backup(path: Path) -> None:
 
 
 def _load_json(path: Path) -> dict:
-    if not path.exists() or not path.read_text().strip():
+    # Client configs can hold non-ASCII paths; never rely on the locale encoding.
+    if not path.exists() or not path.read_text(encoding="utf-8").strip():
         return {}
-    text = path.read_text()
+    text = path.read_text(encoding="utf-8")
     try:
         return json.loads(text)
     except json.JSONDecodeError:
@@ -160,7 +161,7 @@ def merge_json(path: Path, key: str, entry: dict, dry_run: bool) -> str:
     if not dry_run:
         path.parent.mkdir(parents=True, exist_ok=True)
         _backup(path)
-        path.write_text(text)
+        path.write_text(text, encoding="utf-8")
     return text
 
 
@@ -183,7 +184,7 @@ def codex_toml_block(l: Launch) -> str:
 
 def merge_toml(path: Path, block: str, dry_run: bool) -> str:
     """Replace any existing [mcp_servers.graphrag-reader] (and sub-tables) with `block`, keep everything else."""
-    text = path.read_text() if path.exists() else ""
+    text = path.read_text(encoding="utf-8") if path.exists() else ""
     out, skipping = [], False
     header_re = re.compile(r"^\s*\[\[?\s*([^\]]+?)\s*\]\]?\s*(#.*)?$")
     for line in text.splitlines():
@@ -198,7 +199,7 @@ def merge_toml(path: Path, block: str, dry_run: bool) -> str:
     if not dry_run:
         path.parent.mkdir(parents=True, exist_ok=True)
         _backup(path)
-        path.write_text(new)
+        path.write_text(new, encoding="utf-8")
     return new
 
 
@@ -272,11 +273,11 @@ def uninstall(client: str, scope: str = "user", project_dir: Path | None = None)
     _backup(path)
     if client == "codex":
         text = merge_toml(path, "", dry_run=True).rstrip() + "\n"
-        path.write_text(text)
+        path.write_text(text, encoding="utf-8")
     else:
         data = _load_json(path)
         data.get("servers" if client == "vscode" else "mcpServers", {}).pop(SERVER_NAME, None)
-        path.write_text(json.dumps(data, indent=2) + "\n")
+        path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
     return f"removed {SERVER_NAME} from {path}"
 
 

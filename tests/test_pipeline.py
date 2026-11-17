@@ -117,3 +117,39 @@ def test_extract_verified_table_with_sandbox(engine):
 def test_doc_filter_errors_cleanly(engine):
     with pytest.raises(ValueError):
         engine.ask("anything", doc_filter="no_such_document_xyz")
+
+
+@pytest.mark.parametrize("query", ["", "   \n\t ", "???"])
+def test_contentless_query_is_not_reported_verified(engine, query):
+    assert engine.ask(query)["status"] == "abstained"
+
+
+def test_non_latin1_document_ingests_and_answers(engine, tmp_path):
+    """Regression: the parsed-markdown copy was written with the locale encoding,
+    so any document outside cp1252 crashed ingestion on Windows."""
+    doc = tmp_path / "unicode_spec.md"
+    doc.write_text(
+        "# 速度仕様 — Throughput µ-spec \U0001f680\n\n"
+        "## 1. 限度 (Limits)\n\n"
+        "The parameter `queue_depth_max` defaults to 512 ≤ bound. "
+        "Заметка: α-channel only.\n",
+        encoding="utf-8",
+    )
+    res = engine.ingest(str(doc), "technical", doc_name="unicode_spec")
+    assert "indexed" in res["status"] and res["chunks"] >= 1
+    assert "512" in engine.ask("What is queue_depth_max?", doc_filter="unicode_spec")["answer"]
+
+
+def test_empty_document_is_flagged_not_silently_indexed(engine, tmp_path):
+    doc = tmp_path / "blank.md"
+    doc.write_text("", encoding="utf-8")
+    res = engine.ingest(str(doc), "general", doc_name="blank_doc")
+    assert res["chunks"] == 0 and "no text was extracted" in res["status"]
+
+
+def test_ingest_respects_allowed_dirs(engine, tmp_path, monkeypatch):
+    doc = tmp_path / "outside.md"
+    doc.write_text("# X\n\nThe parameter `p` defaults to 1.\n", encoding="utf-8")
+    monkeypatch.setattr(engine.s, "allowed_ingest_dirs", [tmp_path / "elsewhere"])
+    with pytest.raises(PermissionError):
+        engine.ingest(str(doc), "general")

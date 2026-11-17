@@ -40,12 +40,12 @@ class NetworkXGraphStore:
         self._lock = threading.Lock()
         self.g = nx.MultiDiGraph()
         if path.exists():
-            data = json.loads(path.read_text())
+            data = json.loads(path.read_text(encoding="utf-8"))
             self.g = nx.node_link_graph(data, directed=True, multigraph=True, edges="edges")
 
     def _save(self) -> None:
         tmp = self.path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(nx.node_link_data(self.g, edges="edges")))
+        tmp.write_text(json.dumps(nx.node_link_data(self.g, edges="edges")), encoding="utf-8")
         tmp.replace(self.path)
 
     def upsert(self, entities: list[Entity], relations: list[Relation]) -> None:

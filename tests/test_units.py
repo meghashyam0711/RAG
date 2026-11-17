@@ -1,6 +1,10 @@
+import os
+
 import pytest
 
+from graphrag.agent.nodes import coverage
 from graphrag.agent.sandbox import SandboxError, normalize_numbers, safe_eval
+from graphrag.config import Settings
 from graphrag.ingestion.chunker import chunk_blocks
 from graphrag.ingestion.entity_resolver import EntityResolver, normalize_fiscal_period, section_key
 from graphrag.ingestion.layout_parser import parse_markdown
@@ -59,6 +63,52 @@ def test_tables_are_atomic_and_carry_units():
     chunks = chunk_blocks(blocks, doc_id="d", doc_name="d", domain="finance", chunk_tokens=50)
     t = [c for c in chunks if c.chunk_type == "table"][0]
     assert "| Metric | 2024 | 2025 |" in t.text and "Units: $ in millions" in t.header
+
+
+@pytest.mark.parametrize("var,value", [
+    ("GRAPHRAG_VECTOR_K", "abc"),        # not a number
+    ("GRAPHRAG_CHUNK_TOKENS", "-5"),     # negative budget
+    ("GRAPHRAG_FINAL_K", "0"),           # would make every answer abstain
+    ("GRAPHRAG_CHUNK_OVERLAP", "nope"),
+    ("GRAPHRAG_CHUNK_OVERLAP", "2"),     # overlap >= chunk never terminates usefully
+])
+def test_settings_reject_bad_env(tmp_path, monkeypatch, var, value):
+    monkeypatch.setenv("GRAPHRAG_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv(var, value)
+    with pytest.raises(ValueError, match=var):
+        Settings()
+
+
+def test_allowed_ingest_dirs(tmp_path, monkeypatch):
+    allowed, other = tmp_path / "ok", tmp_path / "nope"
+    allowed.mkdir()
+    other.mkdir()
+    monkeypatch.setenv("GRAPHRAG_DATA_DIR", str(tmp_path / "idx"))
+    monkeypatch.setenv("GRAPHRAG_ALLOWED_DIRS", str(allowed))
+    s = Settings()
+    s.check_ingest_path(allowed / "sub" / "doc.pdf")          # inside: fine
+    with pytest.raises(PermissionError):
+        s.check_ingest_path(other / "doc.pdf")
+    with pytest.raises(PermissionError):
+        s.check_ingest_path(allowed.parent / "doc.pdf")
+    monkeypatch.delenv("GRAPHRAG_ALLOWED_DIRS")
+    Settings().check_ingest_path(other / "doc.pdf")           # unset: no restriction
+
+
+def test_allowed_ingest_dirs_accepts_several(tmp_path, monkeypatch):
+    a, b = tmp_path / "a", tmp_path / "b"
+    a.mkdir()
+    b.mkdir()
+    monkeypatch.setenv("GRAPHRAG_DATA_DIR", str(tmp_path / "idx"))
+    monkeypatch.setenv("GRAPHRAG_ALLOWED_DIRS", os.pathsep.join([str(a), str(b)]))
+    s = Settings()
+    s.check_ingest_path(a / "x.md")
+    s.check_ingest_path(b / "y.md")
+
+
+def test_coverage_of_a_question_with_no_key_terms_is_zero():
+    # Otherwise "???" grades RELEVANT and its answer is reported as "verified".
+    assert coverage("???", [])[0] == 0.0
 
 
 def test_large_table_split_repeats_header():

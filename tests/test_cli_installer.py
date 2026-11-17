@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import sys
 import tomllib
@@ -93,9 +94,18 @@ def test_snippets_cover_all_clients(home):
         assert marker in s
 
 
+def _clean_env(tmp_path, **extra):
+    """A subprocess env with the index/backends pinned.
+
+    Inherits os.environ: on Windows a hand-built env without SystemRoot /
+    USERPROFILE breaks winsock (asyncio) and Path.home().
+    """
+    return {**os.environ, "GRAPHRAG_EMBEDDER": "hash", "GRAPHRAG_LLM_PROVIDER": "none",
+            "HOME": str(tmp_path), "USERPROFILE": str(tmp_path), **extra}
+
+
 def test_terminal_cli_end_to_end(tmp_path):
-    env = {"GRAPHRAG_DATA_DIR": str(tmp_path / "idx"), "GRAPHRAG_EMBEDDER": "hash", "GRAPHRAG_LLM_PROVIDER": "none",
-           "PATH": "/usr/bin:/bin", "HOME": str(tmp_path)}
+    env = _clean_env(tmp_path, GRAPHRAG_DATA_DIR=str(tmp_path / "idx"))
     run = lambda *a, **kw: subprocess.run([sys.executable, str(ROOT / "graphrag_cli.py"), *a],
                                           capture_output=True, text=True, env=env, **kw)
     r = run("ingest", str(FIXTURE), "--domain", "technical")
@@ -112,7 +122,7 @@ def test_terminal_cli_end_to_end(tmp_path):
 
 
 def test_doctor_passes(tmp_path):
-    env = {"GRAPHRAG_EMBEDDER": "hash", "GRAPHRAG_LLM_PROVIDER": "none", "PATH": "/usr/bin:/bin", "HOME": str(tmp_path)}
+    env = _clean_env(tmp_path)
     r = subprocess.run([sys.executable, str(ROOT / "graphrag_cli.py"), "doctor"], capture_output=True, text=True, env=env)
     assert "[PASS] multi-hop verified answer" in r.stdout and "[PASS] abstains" in r.stdout
 

@@ -39,7 +39,19 @@ class QdrantStore:
         if settings.qdrant_url:
             self.client = QdrantClient(url=settings.qdrant_url, api_key=settings.qdrant_api_key)
         else:
-            self.client = QdrantClient(path=str(settings.qdrant_path))
+            try:
+                self.client = QdrantClient(path=str(settings.qdrant_path))
+            except RuntimeError as exc:
+                if "already accessed" not in str(exc):
+                    raise
+                # Embedded Qdrant takes an exclusive lock on its folder, so a CLI
+                # run and an MCP server cannot share one index.
+                raise RuntimeError(
+                    f"The index at {settings.qdrant_path} is already open in another process "
+                    "(e.g. the MCP server running in your IDE). Close it, point this run at a "
+                    "different GRAPHRAG_DATA_DIR, or set QDRANT_URL to use a Qdrant server for "
+                    "concurrent access."
+                ) from exc
         self.collection = f"{settings.collection}__{_safe(embedder.name)}"
         self._ensure_collection()
 

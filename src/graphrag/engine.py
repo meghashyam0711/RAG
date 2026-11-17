@@ -49,7 +49,7 @@ class GraphRAGEngine:
         self.nodes = Nodes(self.retriever, self.llm, self.s)
         self.workflow = build_workflow(self.nodes)
         self.registry: dict[str, dict] = (
-            json.loads(self.s.registry_path.read_text()) if self.s.registry_path.exists() else {}
+            json.loads(self.s.registry_path.read_text(encoding="utf-8")) if self.s.registry_path.exists() else {}
         )
 
     # ------------------------------------------------------------------
@@ -64,7 +64,7 @@ class GraphRAGEngine:
         }
 
     def _save_registry(self) -> None:
-        self.s.registry_path.write_text(json.dumps(self.registry, indent=2))
+        self.s.registry_path.write_text(json.dumps(self.registry, indent=2), encoding="utf-8")
 
     # ------------------------------------------------------------------
     # Ingestion
@@ -72,8 +72,9 @@ class GraphRAGEngine:
     def ingest(self, file_path: str, domain_tag: str = "general", doc_name: str | None = None, force: bool = False) -> dict:
         t0 = time.perf_counter()
         path = Path(file_path).expanduser().resolve()
+        self.s.check_ingest_path(path)
         domain = domain_tag.lower() if domain_tag.lower() in ENTITY_TYPES else "general"
-        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        digest = _file_digest(path)
         name = doc_name or path.stem
         doc_id = re.sub(r"[^\w\-]+", "_", name.lower()).strip("_")[:48] + "-" + hashlib.sha1(str(path).encode()).hexdigest()[:6]
 
@@ -86,7 +87,11 @@ class GraphRAGEngine:
                 self.graph.delete_doc(doc_id)
 
             blocks, backend = parse_document(path)
-            (self.s.parsed_dir / f"{doc_id}.md").write_text(blocks_to_markdown(blocks))
+            # errors="replace": a document may contain any code point, and the
+            # Windows default encoding (cp1252) cannot represent most of them.
+            (self.s.parsed_dir / f"{doc_id}.md").write_text(
+                blocks_to_markdown(blocks), encoding="utf-8", errors="replace"
+            )
             chunks = chunk_blocks(blocks, doc_id=doc_id, doc_name=name, domain=domain,
                                   chunk_tokens=self.s.chunk_tokens, overlap=self.s.chunk_overlap)
 
@@ -133,6 +138,8 @@ class GraphRAGEngine:
             self._save_registry()
         warn = (" WARNING: parsed with pypdf (no layout model) - install docling for tables/multi-column."
                 if backend == "pypdf" else "")
+        if not chunks:
+            warn += " WARNING: no text was extracted - the document is empty or unparseable, so it cannot be queried."
         return {**entry, "status": "indexed" + warn, "seconds": round(time.perf_counter() - t0, 2)}
 
     # ------------------------------------------------------------------
@@ -162,6 +169,9 @@ class GraphRAGEngine:
     # ------------------------------------------------------------------
     def ask(self, query: str, doc_filter: str | list[str] | None = None) -> dict:
         t0 = time.perf_counter()
+        if not query or not query.strip():
+            return {"status": "abstained", "answer": "No question was given.", "citations": [],
+                    "calculations": [], "unsupported_claims": [], "retrieval_rounds": 0, "trace": []}
         if not self.registry:
             return {"status": "abstained", "answer": "No documents are indexed yet. Call ingest_complex_doc first.",
                     "trace": []}
@@ -248,6 +258,15 @@ class GraphRAGEngine:
     def close(self) -> None:
         self.vectors.close()
         self.graph.close()
+
+
+def _file_digest(path: Path, block: int = 1 << 20) -> str:
+    """SHA-256 of a file, streamed: a 500 MB filing must not be held in memory."""
+    h = hashlib.sha256()
+    with path.open("rb") as fh:
+        for part in iter(lambda: fh.read(block), b""):
+            h.update(part)
+    return h.hexdigest()
 
 
 def parse_markdown_table(md: str) -> list[dict]:

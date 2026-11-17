@@ -18,12 +18,33 @@ def _env(name: str, default: str | None = None) -> str | None:
     return value if value not in (None, "") else default
 
 
-def _env_int(name: str, default: int) -> int:
-    return int(_env(name, str(default)))  # type: ignore[arg-type]
+def _env_int(name: str, default: int, minimum: int | None = None) -> int:
+    raw = _env(name, str(default))
+    try:
+        value = int(raw)  # type: ignore[arg-type]
+    except ValueError:
+        raise ValueError(f"{name}={raw!r} is not an integer (default {default})") from None
+    if minimum is not None and value < minimum:
+        raise ValueError(f"{name}={value} is out of range (minimum {minimum})")
+    return value
 
 
-def _env_float(name: str, default: float) -> float:
-    return float(_env(name, str(default)))  # type: ignore[arg-type]
+def _env_float(name: str, default: float, minimum: float | None = None, maximum: float | None = None) -> float:
+    raw = _env(name, str(default))
+    try:
+        value = float(raw)  # type: ignore[arg-type]
+    except ValueError:
+        raise ValueError(f"{name}={raw!r} is not a number (default {default})") from None
+    if (minimum is not None and value < minimum) or (maximum is not None and value > maximum):
+        raise ValueError(f"{name}={value} is out of range ({minimum}..{maximum})")
+    return value
+
+
+def _env_paths(name: str) -> list[Path]:
+    raw = _env(name)
+    if not raw:
+        return []
+    return [Path(p).expanduser().resolve() for p in raw.split(os.pathsep) if p.strip()]
 
 
 @dataclass
@@ -56,21 +77,38 @@ class Settings:
     openai_base_url: str | None = field(default_factory=lambda: _env("OPENAI_BASE_URL"))
 
     # --- Chunking ---------------------------------------------------------
-    chunk_tokens: int = field(default_factory=lambda: _env_int("GRAPHRAG_CHUNK_TOKENS", 800))
-    chunk_overlap: float = field(default_factory=lambda: _env_float("GRAPHRAG_CHUNK_OVERLAP", 0.10))
+    chunk_tokens: int = field(default_factory=lambda: _env_int("GRAPHRAG_CHUNK_TOKENS", 800, minimum=32))
+    chunk_overlap: float = field(default_factory=lambda: _env_float("GRAPHRAG_CHUNK_OVERLAP", 0.10, 0.0, 0.9))
 
     # --- Retrieval / agent ------------------------------------------------
-    vector_k: int = field(default_factory=lambda: _env_int("GRAPHRAG_VECTOR_K", 15))
-    fused_k: int = field(default_factory=lambda: _env_int("GRAPHRAG_FUSED_K", 10))
-    final_k: int = field(default_factory=lambda: _env_int("GRAPHRAG_FINAL_K", 5))
-    graph_hops: int = field(default_factory=lambda: _env_int("GRAPHRAG_GRAPH_HOPS", 1))
-    max_graph_hops: int = field(default_factory=lambda: _env_int("GRAPHRAG_MAX_GRAPH_HOPS", 2))
-    max_retries: int = field(default_factory=lambda: _env_int("GRAPHRAG_MAX_RETRIES", 2))
-    max_regenerations: int = field(default_factory=lambda: _env_int("GRAPHRAG_MAX_REGENERATIONS", 1))
-    entity_match_threshold: float = field(default_factory=lambda: _env_float("GRAPHRAG_ENTITY_THRESHOLD", 92.0))
+    vector_k: int = field(default_factory=lambda: _env_int("GRAPHRAG_VECTOR_K", 15, minimum=1))
+    fused_k: int = field(default_factory=lambda: _env_int("GRAPHRAG_FUSED_K", 10, minimum=1))
+    final_k: int = field(default_factory=lambda: _env_int("GRAPHRAG_FINAL_K", 5, minimum=1))
+    graph_hops: int = field(default_factory=lambda: _env_int("GRAPHRAG_GRAPH_HOPS", 1, minimum=0))
+    max_graph_hops: int = field(default_factory=lambda: _env_int("GRAPHRAG_MAX_GRAPH_HOPS", 2, minimum=0))
+    max_retries: int = field(default_factory=lambda: _env_int("GRAPHRAG_MAX_RETRIES", 2, minimum=0))
+    max_regenerations: int = field(default_factory=lambda: _env_int("GRAPHRAG_MAX_REGENERATIONS", 1, minimum=0))
+    entity_match_threshold: float = field(default_factory=lambda: _env_float("GRAPHRAG_ENTITY_THRESHOLD", 92.0, 0.0, 100.0))
+
+    # --- Safety -----------------------------------------------------------
+    # Optional: restrict which directories `ingest` may read from. Unset (the
+    # default) allows any readable path, which is what a local stdio server
+    # wants. Set it when the server is reachable by anything but its own user
+    # (e.g. GRAPHRAG_TRANSPORT=streamable-http).
+    allowed_ingest_dirs: list[Path] = field(default_factory=lambda: _env_paths("GRAPHRAG_ALLOWED_DIRS"))
 
     def __post_init__(self) -> None:
         self.data_dir.mkdir(parents=True, exist_ok=True)
+
+    def check_ingest_path(self, path: Path) -> None:
+        """Raise if `path` is outside GRAPHRAG_ALLOWED_DIRS (no-op when unset)."""
+        if not self.allowed_ingest_dirs:
+            return
+        if not any(path == d or d in path.parents for d in self.allowed_ingest_dirs):
+            raise PermissionError(
+                f"{path} is outside GRAPHRAG_ALLOWED_DIRS "
+                f"({os.pathsep.join(str(d) for d in self.allowed_ingest_dirs)})"
+            )
 
     @property
     def qdrant_path(self) -> Path:

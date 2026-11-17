@@ -78,7 +78,9 @@ def _present(term: str, haystack: str, hay_tokens: set[str]) -> bool:
 def coverage(question: str, evidence: list[Evidence]) -> tuple[float, list[str]]:
     terms = key_terms(question)
     if not terms:
-        return (1.0 if evidence else 0.0), []
+        # Nothing specific was asked ("???", "what about it"), so no evidence can
+        # cover it. Claiming full coverage here would mark the answer "verified".
+        return 0.0, []
     hay = "\n".join(f"{e.chunk.header} {e.chunk.text}" for e in evidence).lower().replace(",", "")
     hay_tokens = set(re.findall(r"[a-z0-9_\-.]+", hay))
     got, total, missing = 0.0, 0.0, []
