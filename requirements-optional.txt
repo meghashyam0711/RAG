@@ -1,0 +1,31 @@
+# Optional upgrades. The project runs without any of these; each one replaces a
+# built-in fallback with something better. Install only the lines you want.
+#
+#   pip install -r requirements-optional.txt
+#
+# Equivalent to `pip install -e ".[all]"`.
+
+# Layout-aware PDF/DOCX/PPTX parsing: multi-column reading order, intact
+# tables. Strongly recommended for real PDFs. Large download (~1 GB with models).
+docling>=2.0
+
+# Real neural embeddings (BAAI/bge-small-en-v1.5 via ONNX) instead of the
+# offline hashed embedder. Downloads the model on first use (~130 MB).
+fastembed>=0.4
+
+# Cross-encoder reranker (BAAI/bge-reranker-v2-m3) instead of the lexical
+# reranker. Large download (~2 GB) and needs torch.
+sentence-transformers>=3.0
+
+# Production graph store instead of the on-disk NetworkX graph.
+# Needs a running Neo4j (see docker-compose.yml) and NEO4J_URI / NEO4J_PASSWORD.
+neo4j>=5.20
+
+# Internal LLM for extraction / grading / generation / verification.
+# Needs ANTHROPIC_API_KEY or OPENAI_API_KEY. Without one the server stays in
+# extractive mode, which still returns verified, cited evidence.
+anthropic>=0.40
+openai>=1.40
+
+# Only for evaluation/run_benchmark.py --dataset financebench
+datasets>=2.20

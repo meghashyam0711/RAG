@@ -1,13 +1,23 @@
 __pycache__/
 *.py[cod]
 .venv/
+venv/
+env/
 .env
 .pytest_cache/
+.ruff_cache/
 *.egg-info/
 dist/
 build/
-uv.lock
 data/raw_docs/*
 !data/raw_docs/.gitkeep
 results*.json
 .graphrag-mcp/
+
+# Backups the installer leaves beside a client config it edits
+*.bak
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+.idea/

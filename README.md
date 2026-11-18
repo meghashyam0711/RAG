@@ -14,6 +14,37 @@ Coding agents handle source code well but struggle with long reference documents
 
 ---
 
+## What is RAG, and what does this project add?
+
+**RAG (Retrieval-Augmented Generation)** means: instead of hoping a language model memorised your
+document, you *search* the document for the few passages that answer the question and hand only those
+to the model. The model answers from text it can see, so it can cite sources and is far less likely to
+invent facts. The usual pipeline is: split the document into chunks → turn each chunk into a vector
+(an "embedding") → store the vectors → embed the question → return the nearest chunks → let the model
+answer from them.
+
+Plain RAG breaks on long reference documents, and this project adds three things to fix that:
+
+1. **A knowledge graph over the chunks**, so a default in Section 2 and its override in Appendix B are
+   linked and retrieved together, even 120 pages apart.
+2. **A self-correcting loop**: retrieved evidence is *graded* before any answer is written. If it is
+   insufficient the query is rewritten and the search widened; if nothing supports an answer the tool
+   **abstains** instead of guessing.
+3. **Verification**: a deterministic sandbox does all arithmetic, and a verifier removes claims the
+   cited evidence does not support, and flags flipped signs and negations.
+
+## System requirements
+
+| | |
+|---|---|
+| OS | Windows 10/11, macOS or Linux |
+| Python | 3.11 or newer (the one-line installer and `uv` install it for you) |
+| Disk | ~400 MB for lite mode; ~4 GB if you add Docling and the cross-encoder reranker |
+| RAM | 2 GB is enough for lite mode |
+| Network | Only for installing. Lite mode then runs fully offline |
+| API key | **Not required.** Optional, and only to sharpen the internal LLM steps |
+| Services | **None required.** Qdrant and Neo4j are optional (`docker-compose.yml`) |
+
 ## Quick start
 
 ### One-line install (recommended)
@@ -62,6 +93,41 @@ uv run graphrag doctor
 | `uv` not installed | `winget install --id astral-sh.uv -e` (Windows) or `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
 | `cd RAG` fails | The clone failed. Fix git first, or use the one-line installer |
 | Agent shows no `graphrag-reader` tools | Restart the agent/IDE. Run `uv run graphrag doctor` to see which configs contain it |
+
+### Install with pip instead of uv
+
+If you would rather use plain Python and pip, there is no need for uv at all.
+
+**Windows (PowerShell)** — one command per line:
+
+```
+git clone https://github.com/meghashyam0711/RAG.git
+cd RAG
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python graphrag_cli.py doctor
+```
+
+**macOS / Linux:**
+
+```bash
+git clone https://github.com/meghashyam0711/RAG.git
+cd RAG
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python graphrag_cli.py doctor
+```
+
+`doctor` prints `All checks passed.` when everything works. On a pip install it notes
+`[INFO] uv on PATH: no`, which is expected — uv is only needed for the `uv run` launcher.
+
+Optional extras are in `requirements-optional.txt` — install only the lines you want, since some are
+large downloads. Without them the project still runs, using its offline fallbacks.
+
+Using pip rather than uv changes one thing: the commands below become `python graphrag_cli.py <cmd>`
+instead of `uv run graphrag <cmd>` (with the virtual environment activated).
 
 You can then use it in either of two ways.
 

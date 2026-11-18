@@ -1,0 +1,27 @@
+# Core dependencies - everything needed to run the server and the CLI.
+#
+#   pip install -r requirements.txt
+#
+# This mirrors [project].dependencies in pyproject.toml. If you have uv, prefer
+# `uv sync`, which also pins exact versions from uv.lock.
+#
+# Nothing below needs an API key, a GPU or a network service: with only these
+# installed the project runs in "lite" mode (embedded vector store, on-disk
+# graph, offline embeddings).
+
+mcp>=2.0,<3
+langgraph>=0.3
+qdrant-client>=1.12
+pydantic>=2.6
+rapidfuzz>=3.6
+networkx>=3.2
+pypdf>=4.0
+anyio>=4.0
+
+# ---------------------------------------------------------------------------
+# Optional upgrades. Install only what you need - each one is a large download.
+#
+#   pip install -r requirements-optional.txt
+#
+# See requirements-optional.txt, or use the extras in pyproject.toml:
+#   pip install -e ".[docling,embeddings]"

@@ -147,6 +147,7 @@ def cmd_doctor(a) -> int:
     import shutil
     import tempfile
 
+    _quiet_logs()  # otherwise library warnings (e.g. "fastembed unavailable") interleave with the checks
     ok = True
 
     def check(name: str, passed: bool, hint: str = "") -> None:
@@ -155,7 +156,10 @@ def cmd_doctor(a) -> int:
         print(f"[{'PASS' if passed else 'FAIL'}] {name}" + ("" if passed or not hint else f"  -> {hint}"))
 
     check(f"Python {sys.version.split()[0]}", sys.version_info >= (3, 11), "need Python 3.11+ (uv sync installs it)")
-    check("uv on PATH", bool(shutil.which("uv")), "install uv, then open a NEW terminal")
+    # uv is only needed for the `uv run` launcher; a pip install works without
+    # it, so this is a note and never a failure.
+    print(f"[{'PASS' if shutil.which('uv') else 'INFO'}] uv on PATH"
+          + ("" if shutil.which("uv") else ": no  -> fine for a pip install; needed only for `uv run`"))
     tmp = tempfile.mkdtemp(prefix="graphrag-doctor-")
     os.environ["GRAPHRAG_DATA_DIR"] = tmp
     try:
