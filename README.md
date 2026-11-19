@@ -93,6 +93,7 @@ uv run graphrag doctor
 | `uv` not installed | `winget install --id astral-sh.uv -e` (Windows) or `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
 | `cd RAG` fails | The clone failed. Fix git first, or use the one-line installer |
 | Agent shows no `graphrag-reader` tools | Restart the agent/IDE. Run `uv run graphrag doctor` to see which configs contain it |
+| Installer says `registration reported a problem for: <client>` | The install itself is fine — only that client was not registered. Retry it with `uv run graphrag install <client>`, or print the config to paste by hand with `uv run graphrag install --print-all` |
 
 ### Install with pip instead of uv
 
