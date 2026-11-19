@@ -138,6 +138,21 @@ def test_compact_answer_is_small():
     assert "doc::c0001" in verbose and "trace" in verbose
 
 
+@pytest.mark.skipif(os.name != "nt", reason=".cmd shims are Windows-specific")
+def test_run_executes_cmd_shim(tmp_path, monkeypatch):
+    """Regression: Windows CreateProcess cannot execute a batch file, and VS
+    Code's `code` is code.cmd, so `graphrag install vscode` died with
+    [WinError 2] on every machine that had VS Code."""
+    (tmp_path / "fakeclient.cmd").write_text("@echo off\necho hello-from-shim\n", encoding="utf-8")
+    monkeypatch.setenv("PATH", str(tmp_path) + os.pathsep + os.environ.get("PATH", ""))
+    assert "hello-from-shim" in installer._run(["fakeclient", "--version"], dry_run=False)
+
+
+def test_run_reports_a_missing_executable_clearly():
+    with pytest.raises(RuntimeError, match="could not execute"):
+        installer._run(["graphrag-no-such-cli-xyz", "--help"], dry_run=False)
+
+
 def test_launch_uses_absolute_uv_path(monkeypatch):
     monkeypatch.setattr(installer.shutil, "which", lambda x: "/opt/bin/uv" if x == "uv" else None)
     assert installer.resolve_launch("uv").command == "/opt/bin/uv"

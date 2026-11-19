@@ -67,16 +67,29 @@ Run "uv" @("sync", "--quiet")
 Step "Self-test"
 Run "uv" @("run", "graphrag", "doctor")
 
-# 4. Register with coding agents / IDEs
+# 4. Register with coding agents / IDEs.
+# A client that fails to register does not fail the install (the terminal CLI
+# and every other client still work), but it must not be hidden either.
+$failed = @()
 if ($Clients -ne "none") {
     foreach ($c in ($Clients -split ",")) {
-        Step "Registering MCP server: $c"
-        & uv run graphrag install $c.Trim()
+        $name = $c.Trim()
+        Step "Registering MCP server: $name"
+        & uv run graphrag install $name
+        if ($LASTEXITCODE -ne 0) { $failed += $name }
     }
 }
 
 Write-Host ""
-Write-Host "Done. Installed in $Dir" -ForegroundColor Green
+if ($failed.Count) {
+    Write-Host "Installed in $Dir, but registration reported a problem for: $($failed -join ', ')" -ForegroundColor Yellow
+    Write-Host "See the message above. You can retry one client with:"
+    Write-Host "  cd `"$Dir`""
+    Write-Host "  uv run graphrag install <client>        # or: uv run graphrag install --print-all"
+    Write-Host ""
+} else {
+    Write-Host "Done. Installed in $Dir" -ForegroundColor Green
+}
 Write-Host "Restart your agent/IDE to load 'graphrag-reader'. Terminal use:"
 Write-Host "  cd `"$Dir`""
 Write-Host "  uv run graphrag ingest C:\path\to\file.pdf --domain technical"

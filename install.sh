@@ -48,15 +48,26 @@ uv sync --quiet
 step "Self-test"
 uv run graphrag doctor
 
-# 4. Register with agents / IDEs
+# 4. Register with agents / IDEs. A client that fails to register does not fail
+# the install (the terminal CLI and every other client still work), but it must
+# not be hidden either.
+failed=""
 if [ "$CLIENTS" != "none" ]; then
   for c in $(printf '%s' "$CLIENTS" | tr ',' ' '); do
     step "Registering MCP server: $c"
-    uv run graphrag install "$c" || true
+    uv run graphrag install "$c" || failed="$failed $c"
   done
 fi
 
-printf '\n\033[32mDone. Installed in %s\033[0m\n' "$DIR"
+if [ -n "$failed" ]; then
+  printf '\n\033[33mInstalled in %s, but registration reported a problem for:%s\033[0m\n' "$DIR" "$failed"
+  echo "See the message above. You can retry one client with:"
+  echo "  cd \"$DIR\" && uv run graphrag install <client>"
+  echo "  (or: uv run graphrag install --print-all)"
+  echo ""
+else
+  printf '\n\033[32mDone. Installed in %s\033[0m\n' "$DIR"
+fi
 echo "Restart your agent/IDE to load 'graphrag-reader'. Terminal use:"
 echo "  cd \"$DIR\" && uv run graphrag ingest /path/to/file.pdf --domain technical"
 echo "  uv run graphrag ask \"your question\""

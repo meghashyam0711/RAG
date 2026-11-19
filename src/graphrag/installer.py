@@ -207,7 +207,16 @@ def _run(cmd: list[str], dry_run: bool) -> str:
     shown = " ".join(_shell_quote(c) for c in cmd)
     if dry_run:
         return f"$ {shown}"
-    res = subprocess.run(cmd, capture_output=True, text=True)
+    # Resolve to an absolute path first. Windows CreateProcess does not apply
+    # PATHEXT, so a bare "code" is not found when the CLI ships as a .cmd shim
+    # (VS Code's does), which used to fail with a bare [WinError 2]. Given the
+    # resolved path, the shim runs directly - do not wrap it in cmd.exe, which
+    # would re-quote the arguments and break the JSON payload VS Code expects.
+    exe = shutil.which(cmd[0]) or cmd[0]
+    try:
+        res = subprocess.run([exe, *cmd[1:]], capture_output=True, text=True)
+    except OSError as exc:
+        raise RuntimeError(f"{shown}\ncould not execute {cmd[0]!r} ({exe}): {exc}") from None
     if res.returncode != 0:
         raise RuntimeError(f"{shown}\n{res.stderr.strip() or res.stdout.strip()}")
     return f"$ {shown}\n{res.stdout.strip()}"
@@ -228,7 +237,17 @@ def install(client: str, scope: str = "user", project_dir: Path | None = None, l
             cmd = ["claude", "mcp", "add", "--scope", "user"]
             for k, v in l.env.items():
                 cmd += ["-e", f"{k}={v}"]
-            return _run(cmd + [SERVER_NAME, "--", l.command, *l.args], dry_run)
+            cmd += [SERVER_NAME, "--", l.command, *l.args]
+            try:
+                return _run(cmd, dry_run)
+            except RuntimeError as exc:
+                if "already exists" not in str(exc):
+                    raise
+                # `claude mcp add` refuses to overwrite. Re-running the installer
+                # has to update the entry (the install folder may have moved),
+                # so replace it instead of reporting a failure.
+                _run(["claude", "mcp", "remove", "--scope", "user", SERVER_NAME], dry_run)
+                return _run(cmd, dry_run) + "\n(replaced the existing entry)"
         raise RuntimeError("`claude` CLI not found. Install Claude Code, or use --scope project to write .mcp.json.")
 
     if client == "vscode" and scope == "user":
